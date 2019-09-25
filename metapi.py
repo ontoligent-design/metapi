@@ -78,8 +78,9 @@ tags 	array 	An array of subject keyword tags associated with the object 	["Arch
 
     def __init__(self, pwd='./', dbname='mapi.db'):
         self.pwd = pwd
-        self.odf = pd.DataFrame(columns=self.md.col.values)
+        self.odf = pd.DataFrame(columns=self.dd.col.values)
         self.db = sqlite3.connect(pwd+dbname)
+        self.imgdir = pwd + 'images'
         
     def create_table(self, drop=False):
         df = pd.DataFrame(columns=self.ddcols)
@@ -100,18 +101,26 @@ tags 	array 	An array of subject keyword tags associated with the object 	["Arch
     def get_object_metadata(self):
         set_str = ', '.join(["{} = ?".format(col) for col in self.ddcols[1:]])
         sql = "UPDATE object SET {} WHERE objectID = ?".format(set_str)
-        oid_n = pd.read_sql('select count(objectID) as n from object', self.db)
-        print('Count', oid_n.n.values[0])
-        objects = pd.read_sql('select * from object', self.db, index_col='objectID')
-        for oid in tqdm(objects.index.tolist()):
+        df = pd.read_sql('select count(objectID) as n from object where primaryImage is null', self.db)
+        print(df.n.values[0], 'objects to go')
+        objects = pd.read_sql('select objectID from object where primaryImage is null order by objectID', self.db, index_col='objectID')
+        oids = objects.index.tolist()
+        print('Starting from objectID', oids[0])
+        for oid in tqdm(oids):
             url ='{}/objects/{}'.format(self.base_url, oid)
             r = requests.get(url)
-            js = r.text
-            py = json.loads(js)
-            row = [str(py[key]) for key in py.keys()]
+            #js = r.text
+            py = json.loads(r.text)
+            #row = [str(py[key]) for key in py.keys()]
+            row = [str(py[key]) for key in self.ddcols]
             row = row[1:] + row[0:1]
             self.db.execute(sql, row)
             self.db.commit()
+            
+    def download_images(type='small'):
+        sql = "select primaryImageSmall, from object where primaryImageSmall is not null"
+        df = pd.read_sql(sql, self.db)
+        # NEED TO KEEP TRACK
 
 if __name__ == '__main__':
     
