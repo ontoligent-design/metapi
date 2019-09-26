@@ -7,6 +7,9 @@ import sqlite3
 import json
 import os
 from tqdm import tqdm
+from os import listdir
+import subprocess
+import sys
 
 """
 From https://metmuseum.github.io/
@@ -76,11 +79,11 @@ tags 	array 	An array of subject keyword tags associated with the object 	["Arch
     dd = pd.DataFrame([row.split('\t') for row in data_dict], columns=['col', 'type', 'desc', 'example'])
     ddcols = [col.strip() for col in dd.col.tolist()]
 
-    def __init__(self, pwd='./', dbname='mapi.db'):
-        self.pwd = pwd
+    def __init__(self, dbname='mapi.db'):
+        self.pwd = os.getcwd() + '/'
         self.odf = pd.DataFrame(columns=self.dd.col.values)
-        self.db = sqlite3.connect(pwd+dbname)
-        self.imgdir = pwd + 'images'
+        self.db = sqlite3.connect(self.pwd+dbname)
+        self.imgdir = self.pwd + 'images'
         
     def create_table(self, drop=False):
         df = pd.DataFrame(columns=self.ddcols)
@@ -103,7 +106,8 @@ tags 	array 	An array of subject keyword tags associated with the object 	["Arch
         sql = "UPDATE object SET {} WHERE objectID = ?".format(set_str)
         df = pd.read_sql('select count(objectID) as n from object where primaryImage is null', self.db)
         print(df.n.values[0], 'objects to go')
-        objects = pd.read_sql('select objectID from object where primaryImage is null order by objectID', self.db, index_col='objectID')
+        objects = pd.read_sql('select objectID from object where primaryImage is null order by objectID', 
+            self.db, index_col='objectID')
         oids = objects.index.tolist()
         print('Starting from objectID', oids[0])
         for oid in tqdm(oids):
@@ -116,11 +120,25 @@ tags 	array 	An array of subject keyword tags associated with the object 	["Arch
             row = row[1:] + row[0:1]
             self.db.execute(sql, row)
             self.db.commit()
-            
-    def download_images(type='small'):
-        sql = "select primaryImageSmall, from object where primaryImageSmall is not null"
-        df = pd.read_sql(sql, self.db)
-        # NEED TO KEEP TRACK
+    
+    def download_oid_image(self, row):
+        oid = row.objectID
+        print(oid)
+        url = row.primaryImage
+        others = [url] + eval(row.additionalImages)
+        for i, u in enumerate(others):
+            outfile = "{}-{}.jpg".format(oid, i)
+            subprocess.run(['wget', '-qN', u, '-O ' + outfile], cwd=self.imgdir)
+
+    def download_images(self):
+        images = [img for img in listdir(self.imgdir) if img.endswith('.jpg')]
+        oids_done = [0] + [int(oid.split('/')[-1].split('-')[0]) for oid in images]
+        max_oid = max(oids_done)
+        sql = "select objectID, primaryImage, additionalImages from object where primaryImage like '%jpg' and objectID >= ?"
+        df = pd.read_sql(sql, self.db, params=(max_oid,))
+        df.apply(self.download_oid_image, 1)
+        
+        
 
 if __name__ == '__main__':
     
