@@ -162,7 +162,7 @@ class MetAPI():
             from object 
             where primaryImageSmall like '%jpg' 
             and objectID >= ?
-            and tags != '[]'"""
+            and tags != '[]' """
         df = pd.read_sql(sql, self.db, params=(max_oid,))
         for i in tqdm(range(df.shape[0])):
             row = df.iloc[i]
