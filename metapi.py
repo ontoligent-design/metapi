@@ -20,8 +20,6 @@ class MetAPI():
         
         # Check env for home -- needed so app can run from anywhere
         try:
-            # print('METAPI_HOME =', os.environ['METAPI_HOME'])
-            # print('NETAPI_PUB =', os.environ['METAPI_PUB'])
             self.home = os.environ['METAPI_HOME']
             self.pub = os.environ['METAPI_PUB']
         except KeyError:
